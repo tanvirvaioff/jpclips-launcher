@@ -34,7 +34,7 @@ LOCK_FILE = os.path.join(BASE_DIR, ".lock")
 LOG_FILE = os.path.join(BASE_DIR, "jpclips_log.txt")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
-PYTHON_VERSION = "3.12"
+PYTHON_VERSION = "3.11"
 # Use uv to get a reliable Python build (python.org embeddable has broken asyncio)
 UV_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
 
@@ -270,7 +270,7 @@ def check_gpu(ui):
 
 def step_python(ui):
     if os.path.exists(PYTHON_EXE):
-        ui.step("Python 3.12 already installed")
+        ui.step("Python 3.11 already installed")
         return
     # Use uv to install a reliable Python build
     # (python.org embeddable has broken asyncio on Windows)
@@ -284,7 +284,7 @@ def step_python(ui):
     with zipfile.ZipFile(uv_zip, "r") as z:
         z.extractall(uv_dir)
     uv_exe = os.path.join(uv_dir, "uv.exe")
-    ui.step("Installing Python 3.12 via uv...")
+    ui.step("Installing Python 3.11 via uv...")
     ui.indeterminate()
     if os.path.isdir(PYTHON_DIR):
         shutil.rmtree(PYTHON_DIR, ignore_errors=True)
@@ -294,7 +294,7 @@ def step_python(ui):
          "--install-dir", PYTHON_DIR],
         check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    # uv installs to PYTHON_DIR/cpython-3.12.x-windows-x86_64-none/
+    # uv installs to PYTHON_DIR/cpython-3.11.x-windows-x86_64-none/
     # Find the actual python.exe
     import glob
     cands = glob.glob(os.path.join(PYTHON_DIR, "*", "python.exe"))

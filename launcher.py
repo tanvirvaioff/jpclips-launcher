@@ -35,8 +35,8 @@ GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 APP_VERSION = "1"
 APP_VERSION_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
                    "jpclips-launcher/main/app_version.txt")
-APP_ZIP_URL = ("https://github.com/tanvirvaioff/jpclips-launcher/"
-               "releases/download/app-v1/jpclips-pc.zip")
+APP_ZIP_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
+               "jpclips-launcher/main/app/jpclips-pc.zip")
 
 TORCH_INDEX = "https://download.pytorch.org/whl/cu121"
 CHUNK = 1024 * 256

@@ -1,0 +1,47 @@
+name: Build JpClipsPC.exe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'launcher.py'
+      - 'requirements-launcher.txt'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build deps
+        run: pip install -r requirements-launcher.txt
+
+      - name: Build exe with PyInstaller
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name JpClipsPC
+          --hidden-import webview.platforms.edgechromium
+          --hidden-import webview.platforms.winforms
+          --collect-all webview
+          launcher.py
+
+      - name: Check exe size
+        shell: pwsh
+        run: |
+          $f = Get-Item dist/JpClipsPC.exe
+          Write-Host ("JpClipsPC.exe = {0:N1} MB" -f ($f.Length / 1MB))
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JpClipsPC
+          path: dist/JpClipsPC.exe
+          if-no-files-found: error

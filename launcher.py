@@ -34,7 +34,7 @@ LOCK_FILE = os.path.join(BASE_DIR, ".lock")
 LOG_FILE = os.path.join(BASE_DIR, "jpclips_log.txt")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
-PYTHON_VERSION = "3.11.9"
+PYTHON_VERSION = "3.12.7"
 PYTHON_EMBED_URL = (
     "https://www.python.org/ftp/python/%s/python-%s-embed-amd64.zip"
     % (PYTHON_VERSION, PYTHON_VERSION))
@@ -272,12 +272,12 @@ def check_gpu(ui):
 
 def step_python(ui):
     if os.path.exists(PYTHON_EXE):
-        ui.step("Python 3.11 already downloaded")
+        ui.step("Python 3.12 already downloaded")
         return
-    ui.step("Downloading Python 3.11...")
+    ui.step("Downloading Python 3.12...")
     dest = os.path.join(DOWNLOAD_DIR, "python-embed.zip")
     download(PYTHON_EMBED_URL, dest, ui.progress)
-    ui.step("Extracting Python 3.11...")
+    ui.step("Extracting Python 3.12...")
     ui.indeterminate()
     if os.path.isdir(PYTHON_DIR):
         shutil.rmtree(PYTHON_DIR, ignore_errors=True)

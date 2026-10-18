@@ -35,10 +35,9 @@ LOG_FILE = os.path.join(BASE_DIR, "jpclips_log.txt")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
 PYTHON_VERSION = "3.12.7"
-PYTHON_EMBED_URL = (
-    "https://www.python.org/ftp/python/%s/python-%s-embed-amd64.zip"
+PYTHON_INSTALLER_URL = (
+    "https://www.python.org/ftp/python/%s/python-%s-amd64.exe"
     % (PYTHON_VERSION, PYTHON_VERSION))
-GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 
 APP_VERSION = "1"
 
@@ -272,36 +271,22 @@ def check_gpu(ui):
 
 def step_python(ui):
     if os.path.exists(PYTHON_EXE):
-        ui.step("Python 3.12 already downloaded")
+        ui.step("Python 3.12 already installed")
         return
-    ui.step("Downloading Python 3.12...")
-    dest = os.path.join(DOWNLOAD_DIR, "python-embed.zip")
-    download(PYTHON_EMBED_URL, dest, ui.progress)
-    ui.step("Extracting Python 3.12...")
+    ui.step("Downloading Python 3.12 installer...")
+    dest = os.path.join(DOWNLOAD_DIR, "python-installer.exe")
+    download(PYTHON_INSTALLER_URL, dest, ui.progress)
+    ui.step("Installing Python 3.12 (silent)...")
     ui.indeterminate()
     if os.path.isdir(PYTHON_DIR):
         shutil.rmtree(PYTHON_DIR, ignore_errors=True)
-    os.makedirs(PYTHON_DIR, exist_ok=True)
-    with zipfile.ZipFile(dest, "r") as z:
-        z.extractall(PYTHON_DIR)
-    # Enable site-packages in embeddable python (needed for pip)
-    # Derive _pth filename from version (e.g. 3.12.7 -> python312._pth)
-    _ver_nodot = PYTHON_VERSION.split(".")[0] + PYTHON_VERSION.split(".")[1]
-    pth = os.path.join(PYTHON_DIR, "python%s._pth" % _ver_nodot)
-    if os.path.exists(pth):
-        with open(pth, "r", encoding="utf-8") as f:
-            content = f.read()
-        if "#import site" in content:
-            content = content.replace("#import site", "import site")
-            with open(pth, "w", encoding="utf-8") as f:
-                f.write(content)
-    # Install pip
-    ui.step("Installing pip...")
-    getpip = os.path.join(DOWNLOAD_DIR, "get-pip.py")
-    download(GET_PIP_URL, getpip)
-    subprocess.run([PYTHON_EXE, getpip, "--no-warn-script-location"],
-                   check=True, creationflags=getattr(
-                       subprocess, "CREATE_NO_WINDOW", 0))
+    # Silent install to our portable dir (full installer, not embeddable,
+    # so asyncio and pip work correctly out of the box)
+    subprocess.run(
+        [dest, "/quiet", "InstallAllUsers=0", "PrependPath=0",
+         "Include_pip=1", "TargetDir=%s" % PYTHON_DIR],
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     log("python + pip ready")
 
 
@@ -490,8 +475,7 @@ def set_auto_update_enabled(on):
 
 
 def ask_update_dialog(old_v, new_v):
-    """Modal 'update available' dialog - dark branded style matching the
-    setup window (logo, dark theme, orange primary button).
+    """Modal 'update available' dialog.
 
     Returns (do_update, auto_future). Runs in the boot thread.
     Falls back to auto-update when tkinter is unavailable.
@@ -509,115 +493,39 @@ def ask_update_dialog(old_v, new_v):
         log("update dialog failed - auto-updating: %r" % e)
         return True, False
     root.withdraw()
-
-    # --- JpClips brand palette (matches the setup window) ---
-    BG = "#141414"        # dialog background
-    INK = "#f5f5f5"       # primary text
-    MUTED = "#a3a3a3"      # secondary text
-    ACCENT = "#f97316"     # JpClips orange (primary button)
-    ACCENT_HOVER = "#ea580c"
-    GHOST = "#262626"     # secondary button
-    GHOST_HOVER = "#333333"
-
     dlg = tk.Toplevel(root)
     dlg.title("JpClips")
-    dlg.configure(bg=BG)
     dlg.resizable(False, False)
     try:
         dlg.attributes("-topmost", True)
     except Exception:
         pass
 
-    # --- logo ---
-    try:
-        _b64 = LOGO_DATA_URI.split(",", 1)[1]
-        _logo = tk.PhotoImage(data=_b64)
-        _lw = _logo.width()
-        if _lw > 76:  # scale the 192px icon down to ~76px
-            _f = max(1, _lw // 76)
-            _logo = _logo.subsample(_f, _f)
-        _logo_lbl = tk.Label(dlg, image=_logo, bg=BG, bd=0,
-                             highlightthickness=0)
-        _logo_lbl.image = _logo  # keep a reference so it is not GC'd
-        _logo_lbl.pack(pady=(26, 8))
-    except Exception as e:
-        log("update dialog logo failed: %r" % e)
-
-    # --- heading + version ---
-    tk.Label(dlg, text="New Update Available",
-             font=("Segoe UI", 16, "bold"),
-             fg=INK, bg=BG).pack(pady=(0, 4))
-    tk.Label(dlg, text="v%s \u2192 v%s" % (old_v, new_v),
-             font=("Segoe UI", 12),
-             fg=MUTED, bg=BG).pack(pady=(0, 4))
-    tk.Label(dlg, text="Download and install the latest version?",
-             font=("Segoe UI", 10),
-             fg=MUTED, bg=BG).pack(pady=(0, 2))
-
-    # --- auto-update checkbox (dark styled) ---
+    tk.Label(
+        dlg,
+        text="New update available (v%s \u2192 v%s).\nDownload now?"
+        % (old_v, new_v),
+        font=("Segoe UI", 11), justify="left", padx=24, pady=18,
+    ).pack(fill="x")
     auto_var = tk.BooleanVar(value=False)
-    chk = tk.Checkbutton(
+    tk.Checkbutton(
         dlg, text="Always update automatically (don't ask again)",
-        variable=auto_var,
-        font=("Segoe UI", 9),
-        fg=MUTED, bg=BG,
-        activebackground=BG, activeforeground=INK,
-        selectcolor="#1e1e1e", bd=0, highlightthickness=0,
-        cursor="hand2",
-    )
-    chk.pack(anchor="w", padx=44, pady=(18, 2))
+        variable=auto_var, padx=20,
+    ).pack(anchor="w")
 
-    # --- buttons ---
-    btns = tk.Frame(dlg, bg=BG)
-    btns.pack(fill="x", padx=36, pady=(16, 28))
+    btns = tk.Frame(dlg)
+    btns.pack(fill="x", padx=20, pady=(10, 18))
 
     def _done(update):
         state["update"] = update
         state["auto"] = bool(auto_var.get())
         dlg.destroy()
 
-    def _style_btn(btn, bg, fg, hover_bg):
-        btn.configure(relief="flat", bd=0, padx=12, pady=8,
-                      cursor="hand2",
-                      bg=bg, fg=fg,
-                      activebackground=hover_bg, activeforeground=fg,
-                      font=("Segoe UI", 10, "bold"))
-        btn.bind("<Enter>",
-                 lambda e, b=btn, c=hover_bg: b.configure(bg=c))
-        btn.bind("<Leave>",
-                 lambda e, b=btn, c=bg: b.configure(bg=c))
-
-    update_btn = tk.Button(btns, text="Update Now", width=14,
-                           command=lambda: _done(True))
-    _style_btn(update_btn, ACCENT, "#ffffff", ACCENT_HOVER)
-    update_btn.pack(side="right")
-
-    later_btn = tk.Button(btns, text="Later", width=14,
-                          command=lambda: _done(False))
-    _style_btn(later_btn, GHOST, INK, GHOST_HOVER)
-    later_btn.pack(side="right", padx=(0, 10))
-
+    tk.Button(btns, text="Update", width=14,
+              command=lambda: _done(True)).pack(side="right")
+    tk.Button(btns, text="Later", width=14,
+              command=lambda: _done(False)).pack(side="right", padx=(0, 10))
     dlg.protocol("WM_DELETE_WINDOW", lambda: _done(False))
-
-    # --- center on screen ---
-    dlg.update_idletasks()
-    w, h = 400, 372
-    try:
-        x = (dlg.winfo_screenwidth() - w) // 2
-        y = (dlg.winfo_screenheight() - h) // 2
-    except Exception:
-        x, y = 100, 100
-    dlg.geometry("%dx%d+%d+%d" % (w, h, x, y))
-    try:
-        dlg.grab_set()
-    except Exception:
-        pass
-    dlg.wait_window()
-    try:
-        root.destroy()
-    except Exception:
-        pass
-    return state["update"], state["auto"]
 
     dlg.update_idletasks()
     w, h = 400, 200

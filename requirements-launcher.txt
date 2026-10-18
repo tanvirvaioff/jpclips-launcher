@@ -1,0 +1,4 @@
+# Build-only requirements for JpClipsPC.exe (installed on GitHub Actions windows runner)
+pyinstaller==6.11.1
+pywebview==5.1
+requests==2.32.3

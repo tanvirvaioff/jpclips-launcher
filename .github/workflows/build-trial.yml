@@ -1,0 +1,42 @@
+name: Build JpClipsTrial.exe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build deps
+        run: pip install -r requirements-launcher.txt
+
+      - name: Build trial exe with PyInstaller
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name JpClipsTrial
+          --icon=jpclips.ico
+          --hidden-import webview.platforms.edgechromium
+          --hidden-import webview.platforms.winforms
+          --collect-all webview
+          trial_launcher.py
+
+      - name: Check exe size
+        shell: pwsh
+        run: |
+          $f = Get-Item dist/JpClipsTrial.exe
+          Write-Host ("JpClipsTrial.exe = {0:N1} MB" -f ($f.Length / 1MB))
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JpClipsTrial
+          path: dist/JpClipsTrial.exe
+          if-no-files-found: error

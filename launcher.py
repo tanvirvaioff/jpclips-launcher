@@ -509,7 +509,8 @@ def set_auto_update_enabled(on):
 
 
 def ask_update_dialog(old_v, new_v):
-    """Modal 'update available' dialog.
+    """Modal 'update available' dialog - dark branded style matching the
+    setup window (logo, dark theme, orange primary button).
 
     Returns (do_update, auto_future). Runs in the boot thread.
     Falls back to auto-update when tkinter is unavailable.
@@ -527,42 +528,99 @@ def ask_update_dialog(old_v, new_v):
         log("update dialog failed - auto-updating: %r" % e)
         return True, False
     root.withdraw()
+
+    # --- JpClips brand palette (matches the setup window) ---
+    BG = "#141414"        # dialog background
+    INK = "#f5f5f5"       # primary text
+    MUTED = "#a3a3a3"      # secondary text
+    ACCENT = "#f97316"     # JpClips orange (primary button)
+    ACCENT_HOVER = "#ea580c"
+    GHOST = "#262626"     # secondary button
+    GHOST_HOVER = "#333333"
+
     dlg = tk.Toplevel(root)
     dlg.title("JpClips")
+    dlg.configure(bg=BG)
     dlg.resizable(False, False)
     try:
         dlg.attributes("-topmost", True)
     except Exception:
         pass
 
-    tk.Label(
-        dlg,
-        text="New update available (v%s \u2192 v%s).\nDownload now?"
-        % (old_v, new_v),
-        font=("Segoe UI", 11), justify="left", padx=24, pady=18,
-    ).pack(fill="x")
-    auto_var = tk.BooleanVar(value=False)
-    tk.Checkbutton(
-        dlg, text="Always update automatically (don't ask again)",
-        variable=auto_var, padx=20,
-    ).pack(anchor="w")
+    # --- logo ---
+    try:
+        _b64 = LOGO_DATA_URI.split(",", 1)[1]
+        _logo = tk.PhotoImage(data=_b64)
+        _lw = _logo.width()
+        if _lw > 76:  # scale the 192px icon down to ~76px
+            _f = max(1, _lw // 76)
+            _logo = _logo.subsample(_f, _f)
+        _logo_lbl = tk.Label(dlg, image=_logo, bg=BG, bd=0,
+                             highlightthickness=0)
+        _logo_lbl.image = _logo  # keep a reference so it is not GC'd
+        _logo_lbl.pack(pady=(26, 8))
+    except Exception as e:
+        log("update dialog logo failed: %r" % e)
 
-    btns = tk.Frame(dlg)
-    btns.pack(fill="x", padx=20, pady=(10, 18))
+    # --- heading + version ---
+    tk.Label(dlg, text="New Update Available",
+             font=("Segoe UI", 16, "bold"),
+             fg=INK, bg=BG).pack(pady=(0, 4))
+    tk.Label(dlg, text="v%s \u2192 v%s" % (old_v, new_v),
+             font=("Segoe UI", 12),
+             fg=MUTED, bg=BG).pack(pady=(0, 4))
+    tk.Label(dlg, text="Download and install the latest version?",
+             font=("Segoe UI", 10),
+             fg=MUTED, bg=BG).pack(pady=(0, 2))
+
+    # --- auto-update checkbox (dark styled) ---
+    auto_var = tk.BooleanVar(value=False)
+    chk = tk.Checkbutton(
+        dlg, text="Always update automatically (don't ask again)",
+        variable=auto_var,
+        font=("Segoe UI", 9),
+        fg=MUTED, bg=BG,
+        activebackground=BG, activeforeground=INK,
+        selectcolor="#1e1e1e", bd=0, highlightthickness=0,
+        cursor="hand2",
+    )
+    chk.pack(anchor="w", padx=44, pady=(18, 2))
+
+    # --- buttons ---
+    btns = tk.Frame(dlg, bg=BG)
+    btns.pack(fill="x", padx=36, pady=(16, 28))
 
     def _done(update):
         state["update"] = update
         state["auto"] = bool(auto_var.get())
         dlg.destroy()
 
-    tk.Button(btns, text="Update", width=14,
-              command=lambda: _done(True)).pack(side="right")
-    tk.Button(btns, text="Later", width=14,
-              command=lambda: _done(False)).pack(side="right", padx=(0, 10))
+    def _style_btn(btn, bg, fg, hover_bg):
+        btn.configure(relief="flat", bd=0, padx=12, pady=8,
+                      cursor="hand2",
+                      bg=bg, fg=fg,
+                      activebackground=hover_bg, activeforeground=fg,
+                      font=("Segoe UI", 10, "bold"))
+        btn.bind("<Enter>",
+                 lambda e, b=btn, c=hover_bg: b.configure(bg=c))
+        btn.bind("<Leave>",
+                 lambda e, b=btn, c=bg: b.configure(bg=c))
+
+    update_btn = tk.Button(btns, text="Update Now", width=14,
+                           command=lambda: _done(True))
+    _style_btn(update_btn, ACCENT, "#ffffff", ACCENT_HOVER)
+    update_btn.pack(side="right")
+
+    later_btn = tk.Button(btns, text="Later", width=14,
+                          command=lambda: _done(False))
+    _style_btn(later_btn, GHOST, INK, GHOST_HOVER)
+    later_btn.pack(side="right", padx=(0, 10))
+
     dlg.protocol("WM_DELETE_WINDOW", lambda: _done(False))
 
+    # --- center on screen ---
     dlg.update_idletasks()
-    w, h = 400, 200
+    w, h = 400, 372
     try:
         x = (dlg.winfo_screenwidth() - w) // 2
         y = (dlg.winfo_screenheight() - h) // 2
@@ -591,8 +649,13 @@ def maybe_update_app(window):
         return
     lv = local_version()
     rv = remote_version()
-    if not rv or rv == lv:
+    # Re-download if version mismatch OR app folder missing
+    # (user might have deleted it)
+    app_missing = not os.path.isdir(APP_DIR)
+    if not rv or (rv == lv and not app_missing):
         return
+    if app_missing:
+        log("app folder missing - re-downloading")
     if not auto_update_enabled():
         do_update, auto_future = ask_update_dialog(lv, rv)
         if auto_future:

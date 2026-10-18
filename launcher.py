@@ -15,8 +15,14 @@ import urllib.error
 APP_TITLE = "JpClips"
 PORT = 8000
 
-BASE_DIR = os.path.join(
-    os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "JpClips")
+def _exe_dir():
+    """Directory holding the exe (portable mode)."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+BASE_DIR = os.path.join(_exe_dir(), "JpClipsData")
 PYTHON_DIR = os.path.join(BASE_DIR, "python")
 PYTHON_EXE = os.path.join(PYTHON_DIR, "python.exe")
 PYTHONW_EXE = os.path.join(PYTHON_DIR, "pythonw.exe")
@@ -149,7 +155,7 @@ max-height:180px;overflow:auto}
 <div class="detail" id="detail"></div>
 <div class="err" id="err"></div>
 <div class="note">Downloads resume automatically if interrupted.<br>
-Nothing is installed into your system Python — everything stays in one folder.</div>
+Nothing is installed into your system Python — everything stays in the JpClipsData folder next to JpClipsPC.exe.</div>
 </div>
 <script>
 function setStep(t){document.getElementById('step').textContent=t;}

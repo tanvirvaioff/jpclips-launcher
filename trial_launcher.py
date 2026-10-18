@@ -1,0 +1,1048 @@
+#!/usr/bin/env python3
+"""JpClips PC Launcher - part 1: config, logging, download."""
+
+import os
+import sys
+import time
+import shutil
+import zipfile
+import subprocess
+import threading
+import traceback
+import urllib.request
+import urllib.error
+import hashlib
+import hmac
+import base64
+import struct
+
+APP_TITLE = "JpClips Trial"
+PORT = 8000
+
+def _exe_dir():
+    """Directory holding the exe (portable mode)."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+BASE_DIR = os.path.join(_exe_dir(), "JpClipsTrialData")
+PYTHON_DIR = os.path.join(BASE_DIR, "python")
+PYTHON_EXE = os.path.join(PYTHON_DIR, "python.exe")
+PYTHONW_EXE = os.path.join(PYTHON_DIR, "pythonw.exe")
+APP_DIR = os.path.join(BASE_DIR, "jpclips-pc")
+MARKER = os.path.join(BASE_DIR, ".setup_done")
+VERSION_FILE = os.path.join(BASE_DIR, "app_version.txt")
+AUTO_UPDATE_FILE = os.path.join(BASE_DIR, ".auto_update")
+LOCK_FILE = os.path.join(BASE_DIR, ".lock")
+LOG_FILE = os.path.join(BASE_DIR, "jpclips_log.txt")
+DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
+
+PYTHON_VERSION = "3.11"
+# Use uv to get a reliable Python build (python.org embeddable has broken asyncio)
+UV_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
+
+APP_VERSION = "1"
+
+# Embedded setup-window logo (JpClips icon, base64 PNG).
+LOGO_DATA_URI = "data:image/png;base64,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"
+APP_VERSION_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
+                   "jpclips-launcher/main/app_version.txt")
+
+# ------------------------------------------------------- trial license system
+# Trial key SHA256 (key format: JPCLIPS-TRIAL-XXXX-XXXX). Plaintext key is
+# never stored; only this hash is compared.
+TRIAL_KEY_HASH = "b8473c2d9539e6fcd63f975d5f5fd0f78867c92e335a71ea6b4211f93f0297a7"
+TRIAL_FILE = os.path.join(BASE_DIR, ".trial")
+TRIAL_HOURS = 48
+_TRIAL_OBFUSCATE_OFFSET = 987654321
+_VPS_MAINTENANCE_MSG = "Our VPS Server In maintenance\u2026 sorry for delay"
+
+APP_ZIP_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
+               "jpclips-launcher/main/app/jpclips-trial.zip")
+
+TORCH_INDEX = "https://download.pytorch.org/whl/cu121"
+CHUNK = 1024 * 256
+
+
+def log(msg):
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(LOG_FILE, "a", encoding="utf-8", errors="replace") as f:
+            f.write("[%s] %s\n" % (ts, msg))
+    except Exception:
+        pass
+
+
+def download(url, dest, progress_cb=None):
+    """Download url -> dest with resume. progress_cb(done_bytes, total_bytes)."""
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    part = dest + ".part"
+    done = os.path.getsize(part) if os.path.exists(part) else 0
+
+    req = urllib.request.Request(url)
+    req.add_header("User-Agent", "JpClips-Launcher/1.0")
+    if done > 0:
+        req.add_header("Range", "bytes=%d-" % done)
+
+    try:
+        resp = urllib.request.urlopen(req, timeout=60)
+    except urllib.error.HTTPError as e:
+        if e.code == 416:
+            os.replace(part, dest)
+            if progress_cb:
+                progress_cb(1, 1)
+            return dest
+        raise
+
+    total = None
+    cr = resp.headers.get("Content-Range")
+    if cr and "/" in cr:
+        try:
+            total = int(cr.rsplit("/", 1)[1])
+        except ValueError:
+            total = None
+    if total is None:
+        clen = resp.headers.get("Content-Length")
+        if clen:
+            try:
+                total = int(clen) + done
+            except ValueError:
+                total = None
+
+    mode = "ab" if done > 0 and resp.status == 206 else "wb"
+    if mode == "wb":
+        done = 0
+    with open(part, mode) as f:
+        while True:
+            buf = resp.read(CHUNK)
+            if not buf:
+                break
+            f.write(buf)
+            done += len(buf)
+            if progress_cb:
+                progress_cb(done, total or 0)
+    os.replace(part, dest)
+    if progress_cb:
+        progress_cb(total or done, total or done)
+    return dest
+
+
+def fmt_mb(n):
+    return "%.1f MB" % (n / 1048576.0)
+
+
+# ------------------------------------------------------- setup window HTML
+
+SETUP_HTML = """<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1115;color:#e8eaf0;font-family:'Segoe UI',Arial,sans-serif;
+display:flex;align-items:center;justify-content:center;height:100vh}
+.card{width:500px;max-width:94vw;background:#171a21;border:1px solid #262b36;border-radius:16px;
+padding:36px 40px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.logoimg{width:96px;height:96px;margin:0 auto 10px;display:block;filter:drop-shadow(0 8px 24px rgba(229,72,77,.35))}
+.logo{font-size:42px;font-weight:800;letter-spacing:-1px}
+.logo span{color:#e5484d}
+.sub{color:#9aa3b2;margin:8px 0 28px;font-size:14px}
+.bar{height:10px;background:#262b36;border-radius:6px;overflow:hidden;margin:18px 0 10px}
+.fill{height:100%;width:0%;border-radius:6px;
+background:linear-gradient(90deg,#e5484d,#f76b15);transition:width .25s}
+.steprow{display:flex;justify-content:space-between;align-items:baseline;margin-top:2px;gap:12px}
+.step{font-size:14px;color:#e8eaf0;min-height:22px;text-align:left;min-width:0;overflow-wrap:anywhere}
+.pct{font-size:14px;font-weight:700;color:#f76b15;min-width:58px;text-align:right;flex-shrink:0}
+.detail{font-size:12px;color:#9aa3b2;margin-top:6px;min-height:18px}
+.indet .fill{width:40%!important;animation:slide 1.2s infinite linear}
+@keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
+.err{color:#ff8585;font-size:13px;margin-top:14px;white-space:pre-wrap;text-align:left;
+max-height:180px;overflow:auto}
+.note{font-size:11px;color:#6b7280;margin-top:22px}
+</style></head>
+<body><div class="card">
+<img class="logoimg" src="__LOGO_DATA_URI__">
+<div class="logo">Jp<span>Clips</span></div>
+<div class="sub">First-time setup — downloading what the app needs.<br>One time only, then it just opens.<br><b>48-hour trial build.</b></div>
+<div class="bar" id="bar"><div class="fill" id="fill"></div></div>
+<div class="steprow"><div class="step" id="step">Starting...</div><div class="pct" id="pct">0%</div></div>
+<div class="detail" id="detail"></div>
+<div class="err" id="err"></div>
+<div class="note">Downloads resume automatically if interrupted.<br>
+Nothing is installed into your system Python — everything stays in the JpClipsData folder next to JpClipsPC.exe.</div>
+</div>
+<script>
+function setStep(t){document.getElementById('step').textContent=t;}
+function setDetail(t){document.getElementById('detail').textContent=t;}
+function setProgress(pct,detail){
+  document.getElementById('bar').classList.remove('indet');
+  document.getElementById('fill').style.width=pct+'%';
+  document.getElementById('pct').textContent=Math.round(pct)+'%';
+  if(detail!==undefined)setDetail(detail);
+}
+function setIndeterminate(){document.getElementById('bar').classList.add('indet');document.getElementById('pct').textContent='';}
+function setPipProgress(p){document.getElementById('bar').classList.remove('indet');document.getElementById('fill').style.width=p+'%';document.getElementById('pct').textContent=p+'%';}
+function setError(t){document.getElementById('err').textContent=t;}
+</script></body></html>"""
+
+
+
+
+# ------------------------------------------------------- splash screen HTML
+
+SPLASH_HTML = """<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1115;color:#e8eaf0;font-family:'Segoe UI',Arial,sans-serif;
+display:flex;align-items:center;justify-content:center;height:100vh}
+.wrap{text-align:center}
+.logoimg{width:96px;height:96px;margin:0 auto 14px;display:block;
+filter:drop-shadow(0 8px 24px rgba(229,72,77,.35))}
+h2{font-size:22px;font-weight:600;letter-spacing:.3px}
+.spinner{width:44px;height:44px;margin:26px auto 0;border:4px solid #262b36;
+border-top-color:#e5484d;border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dots::after{content:'';animation:dots 1.4s steps(4) infinite}
+@keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+</style></head>
+<body><div class="wrap">
+<img class="logoimg" src="__LOGO_DATA_URI__">
+<h2>Starting JpClips<span class="dots"></span></h2>
+<div class="spinner"></div>
+</div></body></html>"""
+
+
+SETUP_HTML = SETUP_HTML.replace("__LOGO_DATA_URI__", LOGO_DATA_URI)
+SPLASH_HTML = SPLASH_HTML.replace("__LOGO_DATA_URI__", LOGO_DATA_URI)
+class SetupUI:
+    """Thin wrapper around the pywebview setup window."""
+
+    def __init__(self, window):
+        self.w = window
+
+    def _js(self, code):
+        try:
+            if self.w:
+                self.w.evaluate_js(code)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _esc(s):
+        return str(s).replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
+
+    def step(self, text):
+        log("SETUP: " + text)
+        self._js("setStep('%s')" % self._esc(text))
+
+    def progress(self, done, total):
+        if total and total > 0:
+            pct = max(0, min(100, done * 100.0 / total))
+            self._js("setProgress(%.1f,'%s / %s')" % (
+                pct, fmt_mb(done), fmt_mb(total)))
+
+    def indeterminate(self):
+        self._js("setIndeterminate()")
+
+    def detail(self, text):
+        self._js("setDetail('%s')" % self._esc(text))
+
+    def error(self, text):
+        log("SETUP ERROR: " + text)
+        self._js("setError('%s')" % self._esc(text))
+
+
+# ------------------------------------------------------------- setup steps
+
+def check_disk_space(ui):
+    need = 10 * 1024 ** 3
+    try:
+        free = shutil.disk_usage(BASE_DIR).free
+    except Exception:
+        free = shutil.disk_usage(os.path.expanduser("~")).free
+    if free < need:
+        raise RuntimeError(
+            "Not enough disk space. Need ~10 GB free, found %s." % fmt_mb(free))
+
+
+def check_gpu(ui):
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=15)
+        if out.returncode == 0 and out.stdout.strip():
+            gpu = out.stdout.strip().splitlines()[0]
+            log("GPU: " + gpu)
+            ui.detail("GPU detected: " + gpu)
+            return
+    except Exception:
+        pass
+    log("WARNING: no NVIDIA GPU detected - processing will be very slow")
+    ui.detail("No NVIDIA GPU detected - CPU mode will be very slow")
+
+
+def step_python(ui):
+    if os.path.exists(PYTHON_EXE):
+        ui.step("Python 3.11 already installed")
+        return
+    # Use uv to install a reliable Python build
+    # (python.org embeddable has broken asyncio on Windows)
+    ui.step("Downloading uv...")
+    uv_zip = os.path.join(DOWNLOAD_DIR, "uv.zip")
+    download(UV_URL, uv_zip, ui.progress)
+    uv_dir = os.path.join(DOWNLOAD_DIR, "uv")
+    if os.path.isdir(uv_dir):
+        shutil.rmtree(uv_dir, ignore_errors=True)
+    os.makedirs(uv_dir, exist_ok=True)
+    with zipfile.ZipFile(uv_zip, "r") as z:
+        z.extractall(uv_dir)
+    uv_exe = os.path.join(uv_dir, "uv.exe")
+    ui.step("Installing Python 3.11 via uv...")
+    ui.indeterminate()
+    if os.path.isdir(PYTHON_DIR):
+        shutil.rmtree(PYTHON_DIR, ignore_errors=True)
+    # uv python install --install-dir puts a full working Python here
+    subprocess.run(
+        [uv_exe, "python", "install", PYTHON_VERSION,
+         "--install-dir", PYTHON_DIR],
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    # uv installs to PYTHON_DIR/cpython-3.11.x-windows-x86_64-none/
+    # Find the actual python.exe
+    import glob
+    cands = glob.glob(os.path.join(PYTHON_DIR, "*", "python.exe"))
+    if not cands:
+        # Try flat structure
+        cands = glob.glob(os.path.join(PYTHON_DIR, "python.exe"))
+    if not cands:
+        raise RuntimeError("uv python install did not create python.exe")
+    # If nested, move up one level for consistency
+    actual_dir = os.path.dirname(cands[0])
+    if os.path.abspath(actual_dir) != os.path.abspath(PYTHON_DIR):
+        for item in os.listdir(actual_dir):
+            s = os.path.join(actual_dir, item)
+            d = os.path.join(PYTHON_DIR, item)
+            if os.path.isdir(s):
+                shutil.copytree(s, d, dirs_exist_ok=True)
+            else:
+                shutil.copy2(s, d)
+    if not os.path.exists(PYTHON_EXE):
+        raise RuntimeError("Python install failed - %s not found" % PYTHON_EXE)
+    log("python + pip ready (via uv)")
+
+
+def step_app_zip(ui):
+    dest = os.path.join(DOWNLOAD_DIR, "jpclips-pc.zip")
+    ui.step("Downloading JpClips app...")
+    download(APP_ZIP_URL, dest, ui.progress)
+    ui.step("Extracting JpClips app...")
+    ui.indeterminate()
+    if os.path.isdir(APP_DIR):
+        shutil.rmtree(APP_DIR, ignore_errors=True)
+    os.makedirs(APP_DIR, exist_ok=True)
+    with zipfile.ZipFile(dest, "r") as z:
+        z.extractall(APP_DIR)
+    if not os.path.exists(os.path.join(APP_DIR, "pc_server.py")):
+        raise RuntimeError("App zip did not contain pc_server.py")
+    log("app extracted to " + APP_DIR)
+
+
+def pip_install(ui, step_text, args):
+    ui.step(step_text)
+    ui.indeterminate()
+    ui.detail("This can take a while - see jpclips_log.txt for progress")
+    log("pip install: " + " ".join(args))
+    import re as _re
+    _pct_re = _re.compile(rb"(\d{1,3})%")
+    last = [0]
+
+    def _feed(seg):
+        ms = _pct_re.findall(seg)
+        if not ms:
+            return
+        try:
+            p = int(ms[-1])
+        except ValueError:
+            return
+        if 0 <= p <= 100 and p != last[0]:
+            last[0] = p
+            ui._js("setPipProgress(%d)" % p)
+
+    with open(LOG_FILE, "a", encoding="utf-8", errors="replace") as lf:
+        lf.write("\n--- pip install %s ---\n" % " ".join(args))
+        lf.flush()
+        proc = subprocess.Popen(
+            [PYTHON_EXE, "-m", "pip", "install", "--no-warn-script-location",
+             "--break-system-packages"] + args,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        buf = b""
+        while True:
+            chunk = proc.stdout.read(4096)
+            if not chunk:
+                break
+            lf.write(chunk.decode("utf-8", errors="replace"))
+            lf.flush()
+            buf += chunk
+            *segs, buf = buf.split(b"\r")
+            for seg in segs:
+                _feed(seg)
+        if buf:
+            _feed(buf)
+        proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError("pip install failed: %s (see jpclips_log.txt)"
+                           % " ".join(args[:3]))
+    ui._js("setPipProgress(100)")
+    log("pip ok: " + " ".join(args[:3]))
+
+
+def step_deps(ui):
+    pip_install(ui, "Installing PyTorch with CUDA 12.1 (~2.5 GB)...",
+                ["torch", "torchvision", "--index-url", TORCH_INDEX])
+    req = os.path.join(APP_DIR, "requirements.txt")
+    if not os.path.exists(req):
+        raise RuntimeError("requirements.txt missing from app")
+    pip_install(ui, "Installing app dependencies...",
+                ["-r", req])
+
+
+def run_setup(ui):
+    os.makedirs(BASE_DIR, exist_ok=True)
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    log("=== setup started ===")
+    check_disk_space(ui)
+    check_gpu(ui)
+    step_python(ui)
+    step_app_zip(ui)
+    step_deps(ui)
+    with open(VERSION_FILE, "w") as f:
+        f.write(APP_VERSION)
+    with open(MARKER, "w") as f:
+        f.write(time.strftime("%Y-%m-%d %H:%M:%S"))
+    log("=== setup complete ===")
+    ui.step("Setup complete! Starting JpClips...")
+
+
+# ------------------------------------------------------- trial license
+
+def _trial_check_key(key):
+    """True if the entered key matches the trial key (SHA256 compare)."""
+    key = (key or "").strip().upper()
+    if not key:
+        return False
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(digest, TRIAL_KEY_HASH)
+
+
+def _trial_write_activation():
+    """Record first-activation timestamp (obfuscated, not plaintext)."""
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+        raw = str(int(time.time()) + _TRIAL_OBFUSCATE_OFFSET).encode("utf-8")
+        with open(TRIAL_FILE, "w") as f:
+            f.write(base64.b64encode(raw).decode("ascii"))
+        log("trial activated")
+    except Exception as e:
+        log("trial activation write failed: %r" % e)
+
+
+def _trial_activation_time():
+    """Return activation epoch seconds, or None if never activated."""
+    try:
+        with open(TRIAL_FILE, "r") as f:
+            data = f.read().strip()
+        raw = base64.b64decode(data.encode("ascii")).decode("utf-8")
+        return int(raw) - _TRIAL_OBFUSCATE_OFFSET
+    except Exception:
+        return None
+
+
+def _trial_expired():
+    """True if the 48h trial window has elapsed."""
+    activated = _trial_activation_time()
+    if activated is None:
+        return False  # not activated yet -> key prompt will handle it
+    return (time.time() - activated) > (TRIAL_HOURS * 3600)
+
+
+def _tk_center(win, w, h):
+    try:
+        x = (win.winfo_screenwidth() - w) // 2
+        y = (win.winfo_screenheight() - h) // 2
+    except Exception:
+        x, y = 100, 100
+    win.geometry("%dx%d+%d+%d" % (w, h, x, y))
+
+
+def _trial_choice_dialog():
+    """Ask: VPS Server or Local Install. Returns 'vps', 'local', or None."""
+    import tkinter as tk
+    try:
+        root = tk.Tk()
+    except Exception:
+        return None
+    root.withdraw()
+    choice = {"v": None}
+
+    BG, INK, MUTED = "#141414", "#f5f5f5", "#a3a3a3"
+    ACCENT, GHOST = "#f97316", "#262626"
+
+    dlg = tk.Toplevel(root)
+    dlg.title("JpClips Trial")
+    dlg.configure(bg=BG)
+    dlg.resizable(False, False)
+    try:
+        dlg.attributes("-topmost", True)
+    except Exception:
+        pass
+
+    tk.Label(dlg, text="JpClips", font=("Segoe UI", 20, "bold"),
+             fg=INK, bg=BG).pack(pady=(28, 2))
+    tk.Label(dlg, text="48-hour trial build",
+             font=("Segoe UI", 10), fg=MUTED, bg=BG).pack(pady=(0, 20))
+    tk.Label(dlg, text="Choose how to run JpClips:",
+             font=("Segoe UI", 11), fg=INK, bg=BG).pack(pady=(0, 14))
+
+    def _pick(v):
+        choice["v"] = v
+        dlg.destroy()
+
+    def _mkbtn(text, cmd):
+        b = tk.Button(dlg, text=text, font=("Segoe UI", 11, "bold"),
+                      width=28, pady=10, cursor="hand2",
+                      bg=GHOST, fg=INK, relief="flat", bd=0,
+                      activebackground="#333333", activeforeground=INK,
+                      command=cmd)
+        b.pack(pady=6)
+        return b
+
+    _mkbtn("\u2601\ufe0f  VPS Server", lambda: _pick("vps"))
+    _mkbtn("\U0001f4bb  Local Install (48h Trial)", lambda: _pick("local"))
+
+    dlg.protocol("WM_DELETE_WINDOW", dlg.destroy)
+    _tk_center(dlg, 380, 340)
+    try:
+        dlg.grab_set()
+    except Exception:
+        pass
+    dlg.wait_window()
+    try:
+        root.destroy()
+    except Exception:
+        pass
+    return choice["v"]
+
+
+def _trial_key_dialog(title_text):
+    """Prompt for the license key. Returns the entered key or None."""
+    import tkinter as tk
+    try:
+        root = tk.Tk()
+    except Exception:
+        return None
+    root.withdraw()
+    result = {"k": None}
+
+    BG, INK, MUTED = "#141414", "#f5f5f5", "#a3a3a3"
+    ACCENT = "#f97316"
+
+    dlg = tk.Toplevel(root)
+    dlg.title("JpClips Trial")
+    dlg.configure(bg=BG)
+    dlg.resizable(False, False)
+    try:
+        dlg.attributes("-topmost", True)
+    except Exception:
+        pass
+
+    tk.Label(dlg, text=title_text, font=("Segoe UI", 12, "bold"),
+             fg=INK, bg=BG).pack(pady=(26, 6))
+    tk.Label(dlg, text="Enter your trial license key:",
+             font=("Segoe UI", 10), fg=MUTED, bg=BG).pack(pady=(0, 10))
+
+    entry = tk.Entry(dlg, font=("Consolas", 12), width=26,
+                     bg="#1e1e1e", fg=INK, insertbackground=INK,
+                     relief="flat", bd=0)
+    entry.pack(pady=(0, 16), ipady=8)
+    entry.focus_set()
+
+    def _ok():
+        result["k"] = entry.get()
+        dlg.destroy()
+
+    entry.bind("<Return>", lambda e: _ok())
+    btn = tk.Button(dlg, text="Activate", font=("Segoe UI", 10, "bold"),
+                    width=16, pady=8, cursor="hand2",
+                    bg=ACCENT, fg="#ffffff", relief="flat", bd=0,
+                    activebackground="#ea580c", activeforeground="#ffffff",
+                    command=_ok)
+    btn.pack(pady=(0, 26))
+
+    dlg.protocol("WM_DELETE_WINDOW", dlg.destroy)
+    _tk_center(dlg, 380, 250)
+    try:
+        dlg.grab_set()
+    except Exception:
+        pass
+    dlg.wait_window()
+    try:
+        root.destroy()
+    except Exception:
+        pass
+    return result["k"]
+
+
+def _trial_msg(title, text, is_error=False):
+    """Simple message dialog."""
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            root.attributes("-topmost", True)
+        except Exception:
+            pass
+        if is_error:
+            messagebox.showerror(title, text, parent=root)
+        else:
+            messagebox.showinfo(title, text, parent=root)
+        try:
+            root.destroy()
+        except Exception:
+            pass
+    except Exception:
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, text, title, 0x40)
+        except Exception:
+            pass
+
+
+def trial_gate():
+    """Run the trial choice/key/expiry gate.
+
+    Returns True if the app may start, False to exit.
+    """
+    os.makedirs(BASE_DIR, exist_ok=True)
+    log("=== trial launcher started ===")
+
+    choice = _trial_choice_dialog()
+    if choice is None:
+        log("trial: no choice made, exiting")
+        return False
+
+    if choice == "vps":
+        key = _trial_key_dialog("VPS Server")
+        if key is None:
+            return False
+        if not _trial_check_key(key):
+            _trial_msg("JpClips Trial", "Invalid license key.", is_error=True)
+            log("trial: invalid key for VPS option")
+            return False
+        _trial_msg("JpClips Trial", _VPS_MAINTENANCE_MSG)
+        log("trial: VPS maintenance message shown")
+        return False
+
+    # Local install path
+    if _trial_expired():
+        _trial_msg("JpClips Trial",
+                   "Trial expired. Contact for full license.",
+                   is_error=True)
+        log("trial: expired, exiting")
+        return False
+
+    if _trial_activation_time() is None:
+        key = _trial_key_dialog("Local Install — 48h Trial")
+        if key is None:
+            return False
+        if not _trial_check_key(key):
+            _trial_msg("JpClips Trial", "Invalid license key.", is_error=True)
+            log("trial: invalid key for local option")
+            return False
+        _trial_write_activation()
+        _trial_msg("JpClips Trial",
+                   "Trial activated! You have 48 hours.\nEnjoy JpClips.")
+    else:
+        # Already activated and not expired — proceed silently.
+        remaining = TRIAL_HOURS * 3600 - (time.time() - _trial_activation_time())
+        log("trial: active, %.1f hours remaining" % (remaining / 3600.0))
+    return True
+
+
+# ------------------------------------------------------- single instance lock
+
+_lock_fh = None
+
+
+def acquire_single_instance_lock():
+    """True if this is the only running instance.
+
+    Uses an OS-level exclusive lock on JpClipsData/.lock (released
+    automatically if the process dies), so a second double-click shows
+    'already running' instead of stacking windows.
+    """
+    global _lock_fh
+    if os.name != "nt":
+        return True
+    try:
+        import msvcrt
+    except ImportError:
+        return True
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+        fh = open(LOCK_FILE, "w+b")
+        fh.write(b"\x00")
+        fh.flush()
+        try:
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            try:
+                fh.close()
+            except Exception:
+                pass
+            return False
+        _lock_fh = fh  # keep open for the life of the process
+        return True
+    except Exception as e:
+        log("single-instance lock failed (continuing anyway): %r" % e)
+        return True
+
+
+def show_already_running():
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "JpClips is already running!\n\n"
+            "If you can't see its window, close it from Task Manager "
+            "and try again.",
+            "JpClips", 0x40)  # MB_ICONINFORMATION
+    except Exception:
+        pass
+
+
+# ------------------------------------------------------- backend + webview
+
+_backend_proc = None
+
+
+def local_version():
+    try:
+        with open(VERSION_FILE) as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+def remote_version():
+    try:
+        # Cache-buster: raw.githubusercontent.com caches aggressively;
+        # without it the launcher can miss a new version for minutes.
+        url = APP_VERSION_URL + ("&" if "?" in APP_VERSION_URL else "?") + \
+            "t=%d" % int(time.time())
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "JpClips-Launcher/1.0",
+                          "Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.read().decode().strip().split()[0]
+    except Exception as e:
+        log("version check failed: %r" % e)
+        return None
+
+
+def auto_update_enabled():
+    """True when the user chose 'always update automatically'."""
+    return os.path.exists(AUTO_UPDATE_FILE)
+
+
+def set_auto_update_enabled(on):
+    try:
+        if on:
+            with open(AUTO_UPDATE_FILE, "w") as f:
+                f.write("1")
+        elif os.path.exists(AUTO_UPDATE_FILE):
+            os.remove(AUTO_UPDATE_FILE)
+    except Exception as e:
+        log("auto-update flag failed: %r" % e)
+
+
+def ask_update_dialog(old_v, new_v):
+    """Modal 'update available' dialog - dark branded style matching the
+    setup window (logo, dark theme, orange primary button).
+
+    Returns (do_update, auto_future). Runs in the boot thread.
+    Falls back to auto-update when tkinter is unavailable.
+    """
+    try:
+        import tkinter as tk
+    except Exception as e:
+        log("tkinter unavailable - auto-updating: %r" % e)
+        return True, False
+
+    state = {"update": False, "auto": False}
+    try:
+        root = tk.Tk()
+    except Exception as e:
+        log("update dialog failed - auto-updating: %r" % e)
+        return True, False
+    root.withdraw()
+
+    # --- JpClips brand palette (matches the setup window) ---
+    BG = "#141414"        # dialog background
+    INK = "#f5f5f5"       # primary text
+    MUTED = "#a3a3a3"      # secondary text
+    ACCENT = "#f97316"     # JpClips orange (primary button)
+    ACCENT_HOVER = "#ea580c"
+    GHOST = "#262626"     # secondary button
+    GHOST_HOVER = "#333333"
+
+    dlg = tk.Toplevel(root)
+    dlg.title("JpClips")
+    dlg.configure(bg=BG)
+    dlg.resizable(False, False)
+    try:
+        dlg.attributes("-topmost", True)
+    except Exception:
+        pass
+
+    # --- logo ---
+    try:
+        _b64 = LOGO_DATA_URI.split(",", 1)[1]
+        _logo = tk.PhotoImage(data=_b64)
+        _lw = _logo.width()
+        if _lw > 76:  # scale the 192px icon down to ~76px
+            _f = max(1, _lw // 76)
+            _logo = _logo.subsample(_f, _f)
+        _logo_lbl = tk.Label(dlg, image=_logo, bg=BG, bd=0,
+                             highlightthickness=0)
+        _logo_lbl.image = _logo  # keep a reference so it is not GC'd
+        _logo_lbl.pack(pady=(26, 8))
+    except Exception as e:
+        log("update dialog logo failed: %r" % e)
+
+    # --- heading + version ---
+    tk.Label(dlg, text="New Update Available",
+             font=("Segoe UI", 16, "bold"),
+             fg=INK, bg=BG).pack(pady=(0, 4))
+    tk.Label(dlg, text="v%s \u2192 v%s" % (old_v, new_v),
+             font=("Segoe UI", 12),
+             fg=MUTED, bg=BG).pack(pady=(0, 4))
+    tk.Label(dlg, text="Download and install the latest version?",
+             font=("Segoe UI", 10),
+             fg=MUTED, bg=BG).pack(pady=(0, 2))
+
+    # --- auto-update checkbox (dark styled) ---
+    auto_var = tk.BooleanVar(value=False)
+    chk = tk.Checkbutton(
+        dlg, text="Always update automatically (don't ask again)",
+        variable=auto_var,
+        font=("Segoe UI", 9),
+        fg=MUTED, bg=BG,
+        activebackground=BG, activeforeground=INK,
+        selectcolor="#1e1e1e", bd=0, highlightthickness=0,
+        cursor="hand2",
+    )
+    chk.pack(anchor="w", padx=44, pady=(18, 2))
+
+    # --- buttons ---
+    btns = tk.Frame(dlg, bg=BG)
+    btns.pack(fill="x", padx=36, pady=(16, 28))
+
+    def _done(update):
+        state["update"] = update
+        state["auto"] = bool(auto_var.get())
+        dlg.destroy()
+
+    def _style_btn(btn, bg, fg, hover_bg):
+        btn.configure(relief="flat", bd=0, padx=12, pady=8,
+                      cursor="hand2",
+                      bg=bg, fg=fg,
+                      activebackground=hover_bg, activeforeground=fg,
+                      font=("Segoe UI", 10, "bold"))
+        btn.bind("<Enter>",
+                 lambda e, b=btn, c=hover_bg: b.configure(bg=c))
+        btn.bind("<Leave>",
+                 lambda e, b=btn, c=bg: b.configure(bg=c))
+
+    update_btn = tk.Button(btns, text="Update Now", width=14,
+                           command=lambda: _done(True))
+    _style_btn(update_btn, ACCENT, "#ffffff", ACCENT_HOVER)
+    update_btn.pack(side="right")
+
+    later_btn = tk.Button(btns, text="Later", width=14,
+                          command=lambda: _done(False))
+    _style_btn(later_btn, GHOST, INK, GHOST_HOVER)
+    later_btn.pack(side="right", padx=(0, 10))
+
+    dlg.protocol("WM_DELETE_WINDOW", lambda: _done(False))
+
+    # --- center on screen ---
+    dlg.update_idletasks()
+    w, h = 400, 372
+    try:
+        x = (dlg.winfo_screenwidth() - w) // 2
+        y = (dlg.winfo_screenheight() - h) // 2
+    except Exception:
+        x, y = 100, 100
+    dlg.geometry("%dx%d+%d+%d" % (w, h, x, y))
+    try:
+        dlg.grab_set()
+    except Exception:
+        pass
+    dlg.wait_window()
+    try:
+        root.destroy()
+    except Exception:
+        pass
+    return state["update"], state["auto"]
+
+
+def maybe_update_app(window):
+    """Trial build: frozen, no auto-updates from the main channel."""
+    log("trial: skipping app update check (frozen trial build)")
+    return
+
+def backend_alive():
+    try:
+        req = urllib.request.Request(
+            "http://127.0.0.1:%d/" % PORT,
+            headers={"User-Agent": "JpClips-Launcher/1.0"})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            return r.status < 500
+    except Exception:
+        return False
+
+
+def start_backend():
+    global _backend_proc
+    if backend_alive():
+        log("backend already running - reusing it")
+        return
+    if not os.path.exists(PYTHONW_EXE):
+        raise RuntimeError("pythonw.exe missing - setup did not complete")
+    env = dict(os.environ)
+    env["WHISPER_DEVICE"] = env.get("WHISPER_DEVICE", "cuda")
+    env["WHISPER_COMPUTE"] = env.get("WHISPER_COMPUTE", "float16")
+    env["MAX_CONCURRENT_JOBS"] = env.get("MAX_CONCURRENT_JOBS", "2")
+    log("starting backend...")
+    with open(LOG_FILE, "a", encoding="utf-8", errors="replace") as lf:
+        lf.write("\n--- backend start %s ---\n"
+                 % time.strftime("%Y-%m-%d %H:%M:%S"))
+        _backend_proc = subprocess.Popen(
+            [PYTHONW_EXE, "-m", "uvicorn", "pc_server:app",
+             "--host", "127.0.0.1", "--port", str(PORT)],
+            cwd=APP_DIR, env=env,
+            stdout=lf, stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    log("backend pid=%s" % _backend_proc.pid)
+
+
+def wait_for_backend(timeout=180):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if backend_alive():
+            return True
+        if _backend_proc and _backend_proc.poll() is not None:
+            raise RuntimeError(
+                "Backend exited (code %s) - see jpclips_log.txt"
+                % _backend_proc.returncode)
+        time.sleep(1.5)
+    raise RuntimeError("Backend did not start in %ds - see jpclips_log.txt"
+                       % timeout)
+
+
+def stop_backend():
+    global _backend_proc
+    if _backend_proc and _backend_proc.poll() is None:
+        log("stopping backend pid=%s" % _backend_proc.pid)
+        try:
+            _backend_proc.terminate()
+            _backend_proc.wait(timeout=15)
+        except Exception:
+            try:
+                _backend_proc.kill()
+            except Exception:
+                pass
+    _backend_proc = None
+
+
+def boot(window):
+    """Runs in background thread after the setup window opens."""
+    ui = SetupUI(window)
+    try:
+        # If Python is missing (e.g. user deleted it), re-run setup
+        # even if MARKER exists
+        if not os.path.exists(MARKER) or not os.path.exists(PYTHONW_EXE):
+            if not os.path.exists(PYTHONW_EXE):
+                log("pythonw.exe missing - re-running setup")
+            run_setup(ui)
+        else:
+            maybe_update_app(window)
+        ui.step("Starting JpClips...")
+        try:
+            window.evaluate_js("setIndeterminate()")
+        except Exception:
+            pass
+        start_backend()
+        wait_for_backend()
+        log("opening app window")
+        window.load_url("http://127.0.0.1:%d/" % PORT)
+    except Exception as e:
+        tb = traceback.format_exc()
+        log("BOOT FAILED: %s\n%s" % (e, tb))
+        ui.error("Something went wrong:\n%s\n\nSee: %s"
+                 % (e, LOG_FILE))
+
+
+def main():
+    os.makedirs(BASE_DIR, exist_ok=True)
+    if not trial_gate():
+        log("=== trial launcher exited (gate) ===")
+        return
+    log("=== launcher started ===")
+    if not acquire_single_instance_lock():
+        log("another instance is already running - exiting")
+        show_already_running()
+        return
+    try:
+        import webview
+    except ImportError:
+        # Should never happen (bundled), but be graceful.
+        raise RuntimeError("UI library missing - reinstall JpClipsPC.exe")
+
+    first_run = not os.path.exists(MARKER)
+    window = webview.create_window(
+        APP_TITLE,
+        html=SETUP_HTML if first_run else SPLASH_HTML,
+        width=560 if first_run else 1280,
+        height=640 if first_run else 860,
+        resizable=not first_run,
+    )
+    window.events.closed += lambda: stop_backend()
+
+    t = threading.Thread(target=boot, args=(window,), daemon=True)
+    t.start()
+    webview.start(debug=False)
+    stop_backend()
+    log("=== launcher exited ===")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        tb = traceback.format_exc()
+        try:
+            log("FATAL: " + tb)
+        except Exception:
+            pass
+        # Last resort visible error (only when a console exists)
+        try:
+            print("JpClips failed to start. See " + LOG_FILE)
+            print(tb)
+        except Exception:
+            pass
+        sys.exit(1)

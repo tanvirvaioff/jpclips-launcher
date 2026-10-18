@@ -282,11 +282,17 @@ def step_python(ui):
         shutil.rmtree(PYTHON_DIR, ignore_errors=True)
     # Silent install to our portable dir (full installer, not embeddable,
     # so asyncio and pip work correctly out of the box)
+    # Note: TargetDir must be quoted (path may contain spaces)
     subprocess.run(
         [dest, "/quiet", "InstallAllUsers=0", "PrependPath=0",
-         "Include_pip=1", "TargetDir=%s" % PYTHON_DIR],
+         "Include_pip=1", 'TargetDir="%s"' % PYTHON_DIR],
         check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    # Verify the install actually worked
+    if not os.path.exists(PYTHON_EXE):
+        raise RuntimeError(
+            "Python installer did not create %s - "
+            "try running the exe as Administrator" % PYTHON_EXE)
     log("python + pip ready")
 
 

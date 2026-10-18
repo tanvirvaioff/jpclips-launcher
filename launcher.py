@@ -34,10 +34,9 @@ LOCK_FILE = os.path.join(BASE_DIR, ".lock")
 LOG_FILE = os.path.join(BASE_DIR, "jpclips_log.txt")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
-PYTHON_VERSION = "3.12.7"
-PYTHON_INSTALLER_URL = (
-    "https://www.python.org/ftp/python/%s/python-%s-amd64.exe"
-    % (PYTHON_VERSION, PYTHON_VERSION))
+PYTHON_VERSION = "3.12"
+# Use uv to get a reliable Python build (python.org embeddable has broken asyncio)
+UV_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
 
 APP_VERSION = "1"
 
@@ -273,27 +272,50 @@ def step_python(ui):
     if os.path.exists(PYTHON_EXE):
         ui.step("Python 3.12 already installed")
         return
-    ui.step("Downloading Python 3.12 installer...")
-    dest = os.path.join(DOWNLOAD_DIR, "python-installer.exe")
-    download(PYTHON_INSTALLER_URL, dest, ui.progress)
-    ui.step("Installing Python 3.12 (silent)...")
+    # Use uv to install a reliable Python build
+    # (python.org embeddable has broken asyncio on Windows)
+    ui.step("Downloading uv...")
+    uv_zip = os.path.join(DOWNLOAD_DIR, "uv.zip")
+    download(UV_URL, uv_zip, ui.progress)
+    uv_dir = os.path.join(DOWNLOAD_DIR, "uv")
+    if os.path.isdir(uv_dir):
+        shutil.rmtree(uv_dir, ignore_errors=True)
+    os.makedirs(uv_dir, exist_ok=True)
+    with zipfile.ZipFile(uv_zip, "r") as z:
+        z.extractall(uv_dir)
+    uv_exe = os.path.join(uv_dir, "uv.exe")
+    ui.step("Installing Python 3.12 via uv...")
     ui.indeterminate()
     if os.path.isdir(PYTHON_DIR):
         shutil.rmtree(PYTHON_DIR, ignore_errors=True)
-    # Silent install to our portable dir (full installer, not embeddable,
-    # so asyncio and pip work correctly out of the box)
-    # Note: TargetDir must be quoted (path may contain spaces)
+    # uv python install --install-dir puts a full working Python here
     subprocess.run(
-        [dest, "/quiet", "InstallAllUsers=0", "PrependPath=0",
-         "Include_pip=1", 'TargetDir="%s"' % PYTHON_DIR],
+        [uv_exe, "python", "install", PYTHON_VERSION,
+         "--install-dir", PYTHON_DIR],
         check=True,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    # Verify the install actually worked
+    # uv installs to PYTHON_DIR/cpython-3.12.x-windows-x86_64-none/
+    # Find the actual python.exe
+    import glob
+    cands = glob.glob(os.path.join(PYTHON_DIR, "*", "python.exe"))
+    if not cands:
+        # Try flat structure
+        cands = glob.glob(os.path.join(PYTHON_DIR, "python.exe"))
+    if not cands:
+        raise RuntimeError("uv python install did not create python.exe")
+    # If nested, move up one level for consistency
+    actual_dir = os.path.dirname(cands[0])
+    if os.path.abspath(actual_dir) != os.path.abspath(PYTHON_DIR):
+        for item in os.listdir(actual_dir):
+            s = os.path.join(actual_dir, item)
+            d = os.path.join(PYTHON_DIR, item)
+            if os.path.isdir(s):
+                shutil.copytree(s, d, dirs_exist_ok=True)
+            else:
+                shutil.copy2(s, d)
     if not os.path.exists(PYTHON_EXE):
-        raise RuntimeError(
-            "Python installer did not create %s - "
-            "try running the exe as Administrator" % PYTHON_EXE)
-    log("python + pip ready")
+        raise RuntimeError("Python install failed - %s not found" % PYTHON_EXE)
+    log("python + pip ready (via uv)")
 
 
 def step_app_zip(ui):

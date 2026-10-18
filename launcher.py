@@ -741,7 +741,11 @@ def boot(window):
     """Runs in background thread after the setup window opens."""
     ui = SetupUI(window)
     try:
-        if not os.path.exists(MARKER):
+        # If Python is missing (e.g. user deleted it), re-run setup
+        # even if MARKER exists
+        if not os.path.exists(MARKER) or not os.path.exists(PYTHONW_EXE):
+            if not os.path.exists(PYTHONW_EXE):
+                log("pythonw.exe missing - re-running setup")
             run_setup(ui)
         else:
             maybe_update_app(window)

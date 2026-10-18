@@ -449,8 +449,13 @@ def local_version():
 
 def remote_version():
     try:
+        # Cache-buster: raw.githubusercontent.com caches aggressively;
+        # without it the launcher can miss a new version for minutes.
+        url = APP_VERSION_URL + ("&" if "?" in APP_VERSION_URL else "?") + \
+            "t=%d" % int(time.time())
         req = urllib.request.Request(
-            APP_VERSION_URL, headers={"User-Agent": "JpClips-Launcher/1.0"})
+            url, headers={"User-Agent": "JpClips-Launcher/1.0",
+                          "Cache-Control": "no-cache"})
         with urllib.request.urlopen(req, timeout=20) as r:
             return r.read().decode().strip().split()[0]
     except Exception as e:

@@ -45,7 +45,7 @@ LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3
 APP_VERSION_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
                    "jpclips-launcher/main/app_version.txt")
 APP_ZIP_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
-               "jpclips-launcher/main/app/jpclips-pc.zip")
+               "jpclips-launcher/main/app/jpclips-pc.zip?v=3")
 
 TORCH_INDEX = "https://download.pytorch.org/whl/cu121"
 CHUNK = 1024 * 256
@@ -310,7 +310,7 @@ def step_app_zip(ui):
         shutil.rmtree(APP_DIR, ignore_errors=True)
     os.makedirs(APP_DIR, exist_ok=True)
     with zipfile.ZipFile(dest, "r") as z:
-        z.extractall(BASE_DIR)
+        z.extractall(APP_DIR)
     if not os.path.exists(os.path.join(APP_DIR, "pc_server.py")):
         raise RuntimeError("App zip did not contain pc_server.py")
     log("app extracted to " + APP_DIR)

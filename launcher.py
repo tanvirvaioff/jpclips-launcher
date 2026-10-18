@@ -167,7 +167,33 @@ function setError(t){document.getElementById('err').textContent=t;}
 
 
 
+# ------------------------------------------------------- splash screen HTML
+
+SPLASH_HTML = """<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1115;color:#e8eaf0;font-family:'Segoe UI',Arial,sans-serif;
+display:flex;align-items:center;justify-content:center;height:100vh}
+.wrap{text-align:center}
+.logoimg{width:96px;height:96px;margin:0 auto 14px;display:block;
+filter:drop-shadow(0 8px 24px rgba(229,72,77,.35))}
+h2{font-size:22px;font-weight:600;letter-spacing:.3px}
+.spinner{width:44px;height:44px;margin:26px auto 0;border:4px solid #262b36;
+border-top-color:#e5484d;border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dots::after{content:'';animation:dots 1.4s steps(4) infinite}
+@keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+</style></head>
+<body><div class="wrap">
+<img class="logoimg" src="__LOGO_DATA_URI__">
+<h2>Starting JpClips<span class="dots"></span></h2>
+<div class="spinner"></div>
+</div></body></html>"""
+
+
 SETUP_HTML = SETUP_HTML.replace("__LOGO_DATA_URI__", LOGO_DATA_URI)
+SPLASH_HTML = SPLASH_HTML.replace("__LOGO_DATA_URI__", LOGO_DATA_URI)
 class SetupUI:
     """Thin wrapper around the pywebview setup window."""
 
@@ -476,9 +502,7 @@ def main():
     first_run = not os.path.exists(MARKER)
     window = webview.create_window(
         APP_TITLE,
-        html=SETUP_HTML if first_run else "<html><body style='background:#0f1115;"
-        "color:#e8eaf0;font-family:Segoe UI;display:flex;align-items:center;"
-        "justify-content:center;height:100vh'><h2>Starting JpClips...</h2></body></html>",
+        html=SETUP_HTML if first_run else SPLASH_HTML,
         width=560 if first_run else 1280,
         height=640 if first_run else 860,
         resizable=not first_run,

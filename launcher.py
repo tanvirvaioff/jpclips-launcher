@@ -33,6 +33,9 @@ PYTHON_EMBED_URL = (
 GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 
 APP_VERSION = "1"
+
+# Embedded setup-window logo (JpClips icon, base64 PNG).
+LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAHkklEQVR4nO3cy3ITRxiG4X8oX0ISzgUpg2RzCIekCuwqliFkk+sNsEwVJDvACyzJItmEkMM9OAtpsA7dM90z3TM9/b/PylW25Lb8feqWukfFlWsjSdRp3wNAcEXfA9i00/cAlgi7Dqb/c6+l6LMAhB4i6znovAxdF4DQo0rnZeiqAN7B/21/HGMc6NGj9xOfHy8zE7UIReQXwc7BJ/D6eBYiShFiFcAp+IQeJY8yBC1CjAJUhp/Qo45DGYKVIHQBrOEn+PBVU4QgJQhVgCjB91wjImERc9CqCMWVa62fmSvC716uR++nbceBgQmYj8YlKK5eb1UAY/h/3XP7wx4fE3osBMhMoxK0KUDj8BN82LTMj3cJmhagUfgJPly1yJJXCZoUYCv8BB+xNMyWcwnOeY6H8KNTdfmx5M/5BIJPAQg/ehGzBK5LIK/wE3zE0iB3lcsh3yVQLcKPmELny6UAzs/+hB9dsOWsyVKouHp9r+r7hvDftAxqVnU/QHCeWTQuhapmAMKPpNlyZ8mpcSbYKQKcqQtxH0BIrpm0zQBbbXk9Nj/7H0x49kd/bPmz5HUr107vAhF+pMyzBGtMBXDaQCD8SIlHHtfyXTsDuLQISFVdfjcLwLM/BqvJLFA5A/DsjxxU5XjH9xqCg8mJJPgZp4CILPL5enzD8B1zZldnAD62EJqcilQsgUwtWjz7A2kz5dQ8K3juBLPjiyEz5becAVj+QKNT4xLo1Wh7ujicsvzBcJjyasp18AtigCGhAFCNAkC1c7LxAti0TgJysZlvp53gw+lc2P3F0BxO5/JqtGv4zlmWWQJBNQoA1SgAVHM6CsERCORkNc/MAFCNAkA1CgDVKABUc7wkklfByAkbYYCIUAAoRwGgGgWAahQAqnEUAupwFAJYogBQjQJANXaCoRA7wU4+zI76HgIiowA1PsyOKELGKIAjSpAnCuCB2SA/FKABipAPdoJb+DA7kt3R3b6HAU/sBAc0nx7JfMpsMFQ7fQ+gC7/sft3odh9//Cn67yg9mf/e6vZohhkAqrETnAwe4+6wEwyICAWAchQAqlEAqKbibdAn8z8a3W4+fRd2IBt2R99EvX/UYwbo0Xz6LnrJUI2jEAkoS3BjzIzQBY5CJOpkwmzQNTbCElOW4Mb4Xs8jyRkbYck7mbyVk8nbvoeRPQqQOIoQFwUYCEoQBwUYEGaD8CjAAFGEcCjAgFGC9ijAwDEbtEMBMkERmuEoRGZOJm/l5h6baFVW88xOcIZmx4uZ4Obe/X4Hkix2glWYHb+R2fGbvoeRNAqgACWwowBKMBuYUQBlKMI6CqAUJVigAIoxG1AAiO4iUAB8prEEO4XDNq/LzyAPZQlG+w/6HUhEq3lW8blAcJdz8E1YAuEzbeEXYQaA6Ax+iQIopjn4JZZAShH+BWYAZQj+OgqgBME3YwmkAOG3YwbIGMGvxyWRGRrtP1x+xf/NbGUnmIvi8zK+9ZD/V42Ni+KRg/Gth/U/hC0UYOAIfju8CzRghL89ZoABIvjhUIABIfjhsQQaCMIfBzNA4gh+XBQgUQS/G+wEJ2Z869vlVzzm8fDhuEk6Cz+6wlGIBOzdXgSfx7kbHIVIRBl89IclUE8IfxqYATpG8NNCATpC8NPEEqgDhD9dzAAREfz0sREWwd7t75Zf8biliY2waM7CjyFgCRQIwR8mdoJb2r+zCD6P0XCs/q9YArVQhh/DxRKoAYKfDwrggeDnhyWQI8KfJ2aAGgQ/b8wAFQh//tgJhkLsBAMiQgGgHAWAahyFgDochQCWKABUowBQjQJANTbCoBAbYYCIUAAoRwGgGgWAahQAqnEUAupwFAJYogBQjQJANaed4JeXL8j3f/7dwXCAcF5ePm/5zvpO8FoDCDpytplvlkBQjQJANQoA1YwFML0OsL+gANJjyqsp1+VOcCEip3V3yo4whsyQ34IlEFSzFuDpx+3p4sUllkFInymnpjyLrBeABQ40KUScrwk+8+LSeXn68Z8oIwLaenHpK8t3zDmvfA1A0JGDqhxvFsBpOrC3DOiPRy4/57z2XSBmAQxZXX5NBWAWwOA0efYXcTwKYWsRJUAKbDl0Wb3YCrA1C1ACpMgz/Fu5droovg5HJJAa10xWLYG27uKHv8yzwPOLzALoni13lpwaK1Hcufe47vdsHZJ7fvFLyy/+t+6+gCA8M2idD1xeBBtmAnPQbYMCQgoVfpEIF8RQAsQUOl8uS6CS81KoxJIIoTTMWu1LYZ8ZwHkpVGI2QAixwi/ivwSiBOhUzPCL+C2BVhkvn2RJhFBaZMlrV6ppAUQalkCEIsCuZX68t2TbFECkRQlEKALOBMhMo/MIxd37rQogUvFpEj9fcF//P/tEGbQJmI/Gh3GKu/cPmt52VUUJvmh8p88+/df4tkhLxBy0OokWqgClKEWATjGDX9oJcScrrB+wVf4xFAF1HGb+YOePQxdApOZT5lb/OMqAksdyN+jh+xgFEDkbZOXHLVIG3Txf40W56iRWAUpORRDZfjAoRH4avqkR9XKr2AUoORehxDtA6nVynWFXBSit/lHOZYAanV9c23UBVlEGiPT8mbT/A1T68YjbWI2uAAAAAElFTkSuQmCC"
 APP_VERSION_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
                    "jpclips-launcher/main/app_version.txt")
 APP_ZIP_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
@@ -120,13 +123,16 @@ body{background:#0f1115;color:#e8eaf0;font-family:'Segoe UI',Arial,sans-serif;
 display:flex;align-items:center;justify-content:center;height:100vh}
 .card{width:520px;background:#171a21;border:1px solid #262b36;border-radius:16px;
 padding:40px 44px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.logoimg{width:96px;height:96px;margin:0 auto 10px;display:block;filter:drop-shadow(0 8px 24px rgba(229,72,77,.35))}
 .logo{font-size:42px;font-weight:800;letter-spacing:-1px}
 .logo span{color:#e5484d}
 .sub{color:#9aa3b2;margin:8px 0 28px;font-size:14px}
 .bar{height:10px;background:#262b36;border-radius:6px;overflow:hidden;margin:18px 0 10px}
 .fill{height:100%;width:0%;border-radius:6px;
 background:linear-gradient(90deg,#e5484d,#f76b15);transition:width .25s}
-.step{font-size:14px;color:#e8eaf0;min-height:22px}
+.steprow{display:flex;justify-content:space-between;align-items:baseline;margin-top:2px}
+.step{font-size:14px;color:#e8eaf0;min-height:22px;text-align:left}
+.pct{font-size:14px;font-weight:700;color:#f76b15;min-width:52px;text-align:right}
 .detail{font-size:12px;color:#9aa3b2;margin-top:6px;min-height:18px}
 .indet .fill{width:40%!important;animation:slide 1.2s infinite linear}
 @keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
@@ -135,10 +141,11 @@ max-height:180px;overflow:auto}
 .note{font-size:11px;color:#6b7280;margin-top:22px}
 </style></head>
 <body><div class="card">
+<img class="logoimg" src="__LOGO_DATA_URI__">
 <div class="logo">Jp<span>Clips</span></div>
 <div class="sub">First-time setup — downloading what the app needs.<br>One time only, then it just opens.</div>
 <div class="bar" id="bar"><div class="fill" id="fill"></div></div>
-<div class="step" id="step">Starting...</div>
+<div class="steprow"><div class="step" id="step">Starting...</div><div class="pct" id="pct">0%</div></div>
 <div class="detail" id="detail"></div>
 <div class="err" id="err"></div>
 <div class="note">Downloads resume automatically if interrupted.<br>
@@ -150,6 +157,7 @@ function setDetail(t){document.getElementById('detail').textContent=t;}
 function setProgress(pct,detail){
   document.getElementById('bar').classList.remove('indet');
   document.getElementById('fill').style.width=pct+'%';
+  document.getElementById('pct').textContent=Math.round(pct)+'%';
   if(detail!==undefined)setDetail(detail);
 }
 function setIndeterminate(){document.getElementById('bar').classList.add('indet');}
@@ -157,6 +165,9 @@ function setError(t){document.getElementById('err').textContent=t;}
 </script></body></html>"""
 
 
+
+
+SETUP_HTML = SETUP_HTML.replace("__LOGO_DATA_URI__", LOGO_DATA_URI)
 class SetupUI:
     """Thin wrapper around the pywebview setup window."""
 

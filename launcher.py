@@ -127,8 +127,8 @@ SETUP_HTML = """<!DOCTYPE html>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e8eaf0;font-family:'Segoe UI',Arial,sans-serif;
 display:flex;align-items:center;justify-content:center;height:100vh}
-.card{width:520px;background:#171a21;border:1px solid #262b36;border-radius:16px;
-padding:40px 44px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.card{width:500px;max-width:94vw;background:#171a21;border:1px solid #262b36;border-radius:16px;
+padding:36px 40px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
 .logoimg{width:96px;height:96px;margin:0 auto 10px;display:block;filter:drop-shadow(0 8px 24px rgba(229,72,77,.35))}
 .logo{font-size:42px;font-weight:800;letter-spacing:-1px}
 .logo span{color:#e5484d}
@@ -136,9 +136,9 @@ padding:40px 44px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
 .bar{height:10px;background:#262b36;border-radius:6px;overflow:hidden;margin:18px 0 10px}
 .fill{height:100%;width:0%;border-radius:6px;
 background:linear-gradient(90deg,#e5484d,#f76b15);transition:width .25s}
-.steprow{display:flex;justify-content:space-between;align-items:baseline;margin-top:2px}
-.step{font-size:14px;color:#e8eaf0;min-height:22px;text-align:left}
-.pct{font-size:14px;font-weight:700;color:#f76b15;min-width:52px;text-align:right}
+.steprow{display:flex;justify-content:space-between;align-items:baseline;margin-top:2px;gap:12px}
+.step{font-size:14px;color:#e8eaf0;min-height:22px;text-align:left;min-width:0;overflow-wrap:anywhere}
+.pct{font-size:14px;font-weight:700;color:#f76b15;min-width:58px;text-align:right;flex-shrink:0}
 .detail{font-size:12px;color:#9aa3b2;margin-top:6px;min-height:18px}
 .indet .fill{width:40%!important;animation:slide 1.2s infinite linear}
 @keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
@@ -166,7 +166,8 @@ function setProgress(pct,detail){
   document.getElementById('pct').textContent=Math.round(pct)+'%';
   if(detail!==undefined)setDetail(detail);
 }
-function setIndeterminate(){document.getElementById('bar').classList.add('indet');}
+function setIndeterminate(){document.getElementById('bar').classList.add('indet');document.getElementById('pct').textContent='';}
+function setPipProgress(p){document.getElementById('bar').classList.remove('indet');document.getElementById('fill').style.width=p+'%';document.getElementById('pct').textContent=p+'%';}
 function setError(t){document.getElementById('err').textContent=t;}
 </script></body></html>"""
 
@@ -321,16 +322,47 @@ def pip_install(ui, step_text, args):
     ui.indeterminate()
     ui.detail("This can take a while - see jpclips_log.txt for progress")
     log("pip install: " + " ".join(args))
+    import re as _re
+    _pct_re = _re.compile(rb"(\d{1,3})%")
+    last = [0]
+
+    def _feed(seg):
+        ms = _pct_re.findall(seg)
+        if not ms:
+            return
+        try:
+            p = int(ms[-1])
+        except ValueError:
+            return
+        if 0 <= p <= 100 and p != last[0]:
+            last[0] = p
+            ui._js("setPipProgress(%d)" % p)
+
     with open(LOG_FILE, "a", encoding="utf-8", errors="replace") as lf:
         lf.write("\n--- pip install %s ---\n" % " ".join(args))
         lf.flush()
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             [PYTHON_EXE, "-m", "pip", "install", "--no-warn-script-location"] + args,
-            stdout=lf, stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        buf = b""
+        while True:
+            chunk = proc.stdout.read(4096)
+            if not chunk:
+                break
+            lf.write(chunk.decode("utf-8", errors="replace"))
+            lf.flush()
+            buf += chunk
+            *segs, buf = buf.split(b"\r")
+            for seg in segs:
+                _feed(seg)
+        if buf:
+            _feed(buf)
+        proc.wait()
     if proc.returncode != 0:
         raise RuntimeError("pip install failed: %s (see jpclips_log.txt)"
                            % " ".join(args[:3]))
+    ui._js("setPipProgress(100)")
     log("pip ok: " + " ".join(args[:3]))
 
 

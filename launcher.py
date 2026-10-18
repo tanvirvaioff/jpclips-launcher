@@ -29,6 +29,7 @@ PYTHONW_EXE = os.path.join(PYTHON_DIR, "pythonw.exe")
 APP_DIR = os.path.join(BASE_DIR, "jpclips-pc")
 MARKER = os.path.join(BASE_DIR, ".setup_done")
 VERSION_FILE = os.path.join(BASE_DIR, "app_version.txt")
+AUTO_UPDATE_FILE = os.path.join(BASE_DIR, ".auto_update")
 LOG_FILE = os.path.join(BASE_DIR, "jpclips_log.txt")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
@@ -417,14 +418,116 @@ def remote_version():
         return None
 
 
+def auto_update_enabled():
+    """True when the user chose 'always update automatically'."""
+    return os.path.exists(AUTO_UPDATE_FILE)
+
+
+def set_auto_update_enabled(on):
+    try:
+        if on:
+            with open(AUTO_UPDATE_FILE, "w") as f:
+                f.write("1")
+        elif os.path.exists(AUTO_UPDATE_FILE):
+            os.remove(AUTO_UPDATE_FILE)
+    except Exception as e:
+        log("auto-update flag failed: %r" % e)
+
+
+def ask_update_dialog(old_v, new_v):
+    """Modal 'update available' dialog.
+
+    Returns (do_update, auto_future). Runs in the boot thread.
+    Falls back to auto-update when tkinter is unavailable.
+    """
+    try:
+        import tkinter as tk
+    except Exception as e:
+        log("tkinter unavailable - auto-updating: %r" % e)
+        return True, False
+
+    state = {"update": False, "auto": False}
+    try:
+        root = tk.Tk()
+    except Exception as e:
+        log("update dialog failed - auto-updating: %r" % e)
+        return True, False
+    root.withdraw()
+    dlg = tk.Toplevel(root)
+    dlg.title("JpClips")
+    dlg.resizable(False, False)
+    try:
+        dlg.attributes("-topmost", True)
+    except Exception:
+        pass
+
+    tk.Label(
+        dlg,
+        text="New update available (v%s \u2192 v%s).\nDownload now?"
+        % (old_v, new_v),
+        font=("Segoe UI", 11), justify="left", padx=24, pady=18,
+    ).pack(fill="x")
+    auto_var = tk.BooleanVar(value=False)
+    tk.Checkbutton(
+        dlg, text="Always update automatically (don't ask again)",
+        variable=auto_var, padx=20,
+    ).pack(anchor="w")
+
+    btns = tk.Frame(dlg)
+    btns.pack(fill="x", padx=20, pady=(10, 18))
+
+    def _done(update):
+        state["update"] = update
+        state["auto"] = bool(auto_var.get())
+        dlg.destroy()
+
+    tk.Button(btns, text="Update", width=14,
+              command=lambda: _done(True)).pack(side="right")
+    tk.Button(btns, text="Later", width=14,
+              command=lambda: _done(False)).pack(side="right", padx=(0, 10))
+    dlg.protocol("WM_DELETE_WINDOW", lambda: _done(False))
+
+    dlg.update_idletasks()
+    w, h = 400, 200
+    try:
+        x = (dlg.winfo_screenwidth() - w) // 2
+        y = (dlg.winfo_screenheight() - h) // 2
+    except Exception:
+        x, y = 100, 100
+    dlg.geometry("%dx%d+%d+%d" % (w, h, x, y))
+    try:
+        dlg.grab_set()
+    except Exception:
+        pass
+    dlg.wait_window()
+    try:
+        root.destroy()
+    except Exception:
+        pass
+    return state["update"], state["auto"]
+
+
 def maybe_update_app(window):
-    """Update app code only (never deps) when a new version is published."""
+    """Update app code only (never deps) when a new version is published.
+
+    Asks the user first (Update / Later) unless they enabled automatic
+    updates. 'Later' launches the app with the current version.
+    """
     if not os.path.exists(MARKER):
         return
+    lv = local_version()
     rv = remote_version()
-    if not rv or rv == local_version():
+    if not rv or rv == lv:
         return
-    log("app update %s -> %s" % (local_version(), rv))
+    if not auto_update_enabled():
+        do_update, auto_future = ask_update_dialog(lv, rv)
+        if auto_future:
+            set_auto_update_enabled(True)
+            log("user enabled automatic app updates")
+        if not do_update:
+            log("app update %s -> %s skipped by user" % (lv, rv))
+            return
+    log("app update %s -> %s" % (lv, rv))
     ui = SetupUI(window)
     try:
         window.evaluate_js(

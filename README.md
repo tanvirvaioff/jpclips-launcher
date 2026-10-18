@@ -20,5 +20,6 @@ Small Windows exe (~50–60 MB). Double-click it:
 
 ## App zip
 
-`jpclips-pc.zip` is attached to the `app-v1` release of this repo — the
-launcher downloads it from there (permanent URL, no expiry).
+`app/jpclips-pc.zip` is committed to this repo — the launcher downloads it
+from the permanent raw URL (no expiry). Bump `app_version.txt` when the
+zip changes and the launcher auto-updates the app code (deps untouched).

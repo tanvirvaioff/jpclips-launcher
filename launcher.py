@@ -30,6 +30,7 @@ APP_DIR = os.path.join(BASE_DIR, "jpclips-pc")
 MARKER = os.path.join(BASE_DIR, ".setup_done")
 VERSION_FILE = os.path.join(BASE_DIR, "app_version.txt")
 AUTO_UPDATE_FILE = os.path.join(BASE_DIR, ".auto_update")
+LOCK_FILE = os.path.join(BASE_DIR, ".lock")
 LOG_FILE = os.path.join(BASE_DIR, "jpclips_log.txt")
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 
@@ -394,6 +395,58 @@ def run_setup(ui):
     ui.step("Setup complete! Starting JpClips...")
 
 
+# ------------------------------------------------------- single instance lock
+
+_lock_fh = None
+
+
+def acquire_single_instance_lock():
+    """True if this is the only running instance.
+
+    Uses an OS-level exclusive lock on JpClipsData/.lock (released
+    automatically if the process dies), so a second double-click shows
+    'already running' instead of stacking windows.
+    """
+    global _lock_fh
+    if os.name != "nt":
+        return True
+    try:
+        import msvcrt
+    except ImportError:
+        return True
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+        fh = open(LOCK_FILE, "w+b")
+        fh.write(b"\x00")
+        fh.flush()
+        try:
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            try:
+                fh.close()
+            except Exception:
+                pass
+            return False
+        _lock_fh = fh  # keep open for the life of the process
+        return True
+    except Exception as e:
+        log("single-instance lock failed (continuing anyway): %r" % e)
+        return True
+
+
+def show_already_running():
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "JpClips is already running!\n\n"
+            "If you can't see its window, close it from Task Manager "
+            "and try again.",
+            "JpClips", 0x40)  # MB_ICONINFORMATION
+    except Exception:
+        pass
+
+
 # ------------------------------------------------------- backend + webview
 
 _backend_proc = None
@@ -634,6 +687,10 @@ def boot(window):
 def main():
     os.makedirs(BASE_DIR, exist_ok=True)
     log("=== launcher started ===")
+    if not acquire_single_instance_lock():
+        log("another instance is already running - exiting")
+        show_already_running()
+        return
     try:
         import webview
     except ImportError:

@@ -285,7 +285,9 @@ def step_python(ui):
     with zipfile.ZipFile(dest, "r") as z:
         z.extractall(PYTHON_DIR)
     # Enable site-packages in embeddable python (needed for pip)
-    pth = os.path.join(PYTHON_DIR, "python311._pth")
+    # Derive _pth filename from version (e.g. 3.12.7 -> python312._pth)
+    _ver_nodot = PYTHON_VERSION.split(".")[0] + PYTHON_VERSION.split(".")[1]
+    pth = os.path.join(PYTHON_DIR, "python%s._pth" % _ver_nodot)
     if os.path.exists(pth):
         with open(pth, "r", encoding="utf-8") as f:
             content = f.read()

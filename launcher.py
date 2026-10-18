@@ -359,7 +359,8 @@ def pip_install(ui, step_text, args):
         lf.write("\n--- pip install %s ---\n" % " ".join(args))
         lf.flush()
         proc = subprocess.Popen(
-            [PYTHON_EXE, "-m", "pip", "install", "--no-warn-script-location"] + args,
+            [PYTHON_EXE, "-m", "pip", "install", "--no-warn-script-location",
+             "--break-system-packages"] + args,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         buf = b""

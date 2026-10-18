@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'launcher.py'
+      - 'jpclips.ico'
       - 'requirements-launcher.txt'
       - '.github/workflows/build.yml'
   workflow_dispatch:
@@ -28,6 +29,7 @@ jobs:
         run: >
           pyinstaller --noconfirm --onefile --windowed
           --name JpClipsPC
+          --icon=jpclips.ico
           --hidden-import webview.platforms.edgechromium
           --hidden-import webview.platforms.winforms
           --collect-all webview

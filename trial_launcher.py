@@ -52,14 +52,14 @@ APP_VERSION_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
 # ------------------------------------------------------- trial license system
 # Trial key SHA256 (key format: JPCLIPS-TRIAL-XXXX-XXXX). Plaintext key is
 # never stored; only this hash is compared.
-TRIAL_KEY_HASH = "b8473c2d9539e6fcd63f975d5f5fd0f78867c92e335a71ea6b4211f93f0297a7"
+TRIAL_KEY_HASH = "a1dc2c7b7387c45bde1702fc5f3d2db055539e408df5dc2d5614c21d316f8eeb"
 TRIAL_FILE = os.path.join(BASE_DIR, ".trial")
 TRIAL_HOURS = 48
 _TRIAL_OBFUSCATE_OFFSET = 987654321
 _VPS_MAINTENANCE_MSG = "Our VPS Server In maintenance\u2026 sorry for delay"
 
 APP_ZIP_URL = ("https://raw.githubusercontent.com/tanvirvaioff/"
-               "jpclips-launcher/main/app/jpclips-trial.zip")
+               "jpclips-launcher/main/app/jpclips-pc.zip")
 
 TORCH_INDEX = "https://download.pytorch.org/whl/cu121"
 CHUNK = 1024 * 256
